@@ -1,46 +1,54 @@
-name: ezim_mobile
-description: EZIM (Enterprise Inventory & Management System) mobile app.
-version: 1.0.0+1
+name: Build Flutter App
 
-environment:
-  sdk: '>=3.0.0 <4.0.0'
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
 
-dependencies:
-  flutter:
-    sdk: flutter
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-  # HTTP & API
-  http: ^1.1.0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  # Environment
-  flutter_dotenv: ^5.1.0
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
 
-  # Secure Storage
-  flutter_secure_storage: ^9.0.0
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
 
-  # Push Notifications
-  firebase_core: ^3.6.0
-  firebase_messaging: ^15.1.0
-  flutter_local_notifications: ^18.0.0
+      - name: Restore google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p android/app
+          echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
-  # WebView
-  webview_flutter: ^4.10.0
+      - name: Restore .env file
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          echo "$ENV_FILE" > .env
 
-  # State Management
-  provider: ^6.0.0
+      - name: Install dependencies
+        run: flutter pub get
 
-  # UI
-  google_fonts: ^6.1.0
+      - name: Build Android APK
+        run: flutter build apk --release
 
-  # Utility
-  logger: ^2.0.0
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
-
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/logo.jpg
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezim-mobile-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
