@@ -1,0 +1,71 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter
+        run: flutter doctor -v
+
+      - name: Install dependencies
+        working-directory: ./flutter-app
+        run: flutter pub get
+
+      - name: Decode google-services.json
+        working-directory: ./flutter-app
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > android/app/google-services.json
+          echo "google-services.json decoded successfully"
+
+      - name: Run analysis (non-blocking)
+        working-directory: ./flutter-app
+        run: flutter analyze --no-fatal-infos || true
+
+      - name: Build APK
+        working-directory: ./flutter-app
+        run: flutter build apk --release --no-tree-shake-icons
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-17-open-amd64
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezim-mobile-apk-${{ github.run_number }}
+          path: flutter-app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+          if-no-files-found: error
